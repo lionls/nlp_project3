@@ -6,21 +6,30 @@ class Database(object):
     
     def __init__(self, docs):
         #self.glove = np.load("glove_word_embeddings.npy")
-        self.documents = np.loadtxt(docs, delimiter='\n',dtype = str)
+        self.documents_orig = np.loadtxt(docs, delimiter='\n',dtype = str)
+        self.documents = []
         self.elmo = ELMoEmbeddings()
         self.embedding = DocumentPoolEmbeddings([self.elmo])
+        self.debug = True
     
     def knn(self, query, k):
-        cos_sim = 1 - np.dot(self.documents, query.embedding.data.numpy()) / (np.linalg.norm(query.embedding.data.numpy()) * np.linalg.norm(self.documents))
-        k_best_indices = np.argpartition(cos_sim,k)[:k]
-
-        return [(cos_sim[int(i)],i) for i in k_best_indices]
+        cos_sim = np.dot(self.documents, query.embedding.data.numpy()) / (np.linalg.norm(query.embedding.data.numpy()) * np.linalg.norm(self.documents))
+        k_best_indices = np.argpartition(cos_sim, -k)[-k:]
+        combined = [(cos_sim[int(i)],i) for i in k_best_indices]
+        combined.sort(key=lambda a: a[0], reverse=True)
+        
+        
+        if self.debug:
+            print("Query: ", query, " index: ", k_best_indices)
+            [print(self.documents_orig[int(i[1])], " --- ", i[0]) for i in combined]
+        
+        return combined
     
     def load_documents_into_embedding(self):
-        print("Embedding ",len(self.documents), " Documents")
-        self.documents = [Sentence(elem) for elem in self.documents]
+        print("Embedding ",len(self.documents_orig), " Documents")
+        self.documents = [Sentence(elem) for elem in self.documents_orig]
 
-        #self.documents = self.documents[0:10] ##delete later just for faster testing
+        #self.documents = self.documents[0:250] ##delete later just for faster testing
         
         self.embedding.embed(self.documents)
     
@@ -80,12 +89,25 @@ class Database(object):
 
         print(results)
 
+        #saving results
+
+        file = open("results.txt",'w')
+
+        for elem in results:
+            out = ""
+            for res in elem:
+                out += str(res[0]) + ","+ str(res[1]) + ";"
+            
+            out += '\n'
+            file.write(out)
+
+        file.close()
+
+
 def main():
     data = Database(docs = "documents.txt")
     data.load_documents_into_embedding()
-    
-    #print(data.run_query("hallo"))
-    
+
     data.run_query_txt("queries.txt")
     pass
 
