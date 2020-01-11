@@ -1,41 +1,49 @@
 from flair.embeddings import ELMoEmbeddings
+import os
 import numpy as np
+import torch
+import sys
 from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentPoolEmbeddings, Sentence
 
 class Database(object):
     
     def __init__(self, docs):
-        #self.glove = np.load("glove_word_embeddings.npy")
-        self.documents_orig = np.loadtxt(docs, delimiter='\n',dtype = str)
+        #self.documents_orig = np.loadtxt(docs, delimiter='\n', dtype = str)   # only 9999 documents
+        self.documents_orig = []
+        with open(docs, 'r') as f:     # getting 10k docs using this
+            self.documents_orig = f.readlines()
+        
         self.documents = []
         self.elmo = ELMoEmbeddings()
-        self.embedding = DocumentPoolEmbeddings([self.elmo])
+        #self.embedding = DocumentPoolEmbeddings([self.elmo])
         self.debug = True
     
-    def knn(self, query, k):
-        cos_sim = np.dot(self.documents, query.embedding.data.numpy()) / (np.linalg.norm(query.embedding.data.numpy()) * np.linalg.norm(self.documents))
-        k_best_indices = np.argpartition(cos_sim, -k)[-k:]
-        combined = [(cos_sim[int(i)],i) for i in k_best_indices]
-        combined.sort(key=lambda a: a[0], reverse=True)
+    def knn(self, query, query_txt, k):
+        #cos_sim = torch.mm(self.documents, query) / (torch.norm(query) * torch.norm(self.documents))
+
+        cos_sim = torch.nn.functional.cosine_similarity(self.documents,query)
         
+        topk, topk_indices = torch.topk(cos_sim, k, 0, True)
+        
+        topk_indices = topk_indices.numpy().astype('int')
+        topk = topk.numpy().astype('float')
+        top_combined = np.vstack((topk,topk_indices)).T
         
         if self.debug:
-            print("Query: ", query, " index: ", k_best_indices)
-            [print(self.documents_orig[int(i[1])], " --- ", i[0]) for i in combined]
+            print("\n")
+            print("Query: ", query_txt, " | index: ", topk_indices.T)
+            [print(self.documents_orig[int(i[1])], " --- ", i[0]) for i in top_combined]
         
-        return combined
+        return list(zip(topk,topk_indices)) #used to return tuples
     
     def load_documents_into_embedding(self):
         print("Embedding ",len(self.documents_orig), " Documents")
-        self.documents = [Sentence(elem) for elem in self.documents_orig]
-
-        #self.documents = self.documents[0:250] ##delete later just for faster testing
+        #self.documents_orig = self.documents_orig[0:50]
+        self.documents = [self.elmo.embed(Sentence(elem)) for elem in self.documents_orig]
         
-        self.embedding.embed(self.documents)
-    
-        self.documents = [elem.embedding.data.numpy() for elem in self.documents]
-    
-        print(self.documents)
+        self.documents = torch.stack([torch.cat([token.embedding.unsqueeze(0) for token in elem[0]], dim=0)[0] for elem in self.documents])
+        
+        np.save("./documents_embedded.npy",self.documents)
     
     def run_query(self, query, k=None):
         """Run a query on the given documents based on word embeddings
@@ -57,11 +65,16 @@ class Database(object):
         """
         if k is None:
             k = 10
-        
-        
+
         sentence = Sentence(query)
         
-        self.embedding.embed(sentence)
+        #self.embedding.embed(sentence)
+        
+        self.elmo.embed(sentence)
+        
+        sentence = [token.embedding.unsqueeze(0) for token in sentence][0]
+        
+        #print(sentence)
         
         # A returned list should look like this for k=5. Btw. the numbers are made up!
         
@@ -74,7 +87,7 @@ class Database(object):
         #        ]
 
 
-        return self.knn(sentence, k=k)
+        return self.knn(sentence, query, k=k)
             
             
             
@@ -87,7 +100,6 @@ class Database(object):
             out = self.run_query(query)
             results.append(out)
 
-        print(results)
 
         #saving results
 
@@ -106,9 +118,18 @@ class Database(object):
 
 def main():
     data = Database(docs = "documents.txt")
-    data.load_documents_into_embedding()
+    if not os.path.exists("./documents_embedded.npy"):
+        data.load_documents_into_embedding()
+    else:
+        data.documents = torch.tensor(np.load("./documents_embedded.npy"))
 
     data.run_query_txt("queries.txt")
+
+    for line in sys.stdin:
+        if 'EXIT' == line.rstrip():
+            break
+        data.run_query(line)
+
     pass
 
 if __name__ == "__main__":

@@ -2,10 +2,12 @@
 
    ----------
 
-   ELMo 
+   Sätze beziehungsweise Dokumente können mit ELMo in Embeddings umgewandelt werden. Durch mathematische Verfahren lassen sich diese Embeddings untereinander Vergleichen und es lassen sich Vergleiche, Vorhersagen oder Rückschlüsse zu den entsprechend eingebetteteten Inhalten gezogen werden. 
 
 2. Welche Probleme sehen Sie dabei?
 
-   -----------------
+   ----------
 
-   Probleme
+   ELMo Embeddings sind kontextabhängige Wörterrepräsentationen. Trotzdem können die erlernten Repräsentationen nicht ausreichend sein und teilweise den Kontext nicht korrekt für die entsprechende Aufgabenstellung erfassen. 
+   
+   Teilweise werden für Aufgabennstellungen bei denen lediglich einzelne Wörter betrachtet werden, nicht der Kontext benötigt. Dadurch bietet ELMo in diese Aufgabenbereichen keine Vorteile, da kein Kontext vorhanden ist.
