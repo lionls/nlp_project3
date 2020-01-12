@@ -109,7 +109,7 @@ class Database(object):
             out = ""
             for res in elem:
                 out += str(res[0]) + ","+ str(res[1]) + ";"
-            
+            out = out[:-1]
             out += '\n'
             file.write(out)
 
